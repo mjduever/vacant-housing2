@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset=utf-8 />
+	<title>Vacant Housing Units in Kentucky</title>
+	<meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" />
+
+	<link href="https://fonts.googleapis.com/css?family=Noto+Sans" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Lora" rel="stylesheet">
+
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			background: whitesmoke;
+			font-family: "Noto Sans", sans-serif;
+			color: #3d3d3d;
+		}
+
+		section {
+			width: 960px;
+			margin: 20px auto;
+		}
+
+		h1 {
+			width: 960px;
+			margin: 20px auto;
+			font-family: "Lora", serif;
+			letter-spacing: .04em;
+		}
+
+		h2 {
+			font-family: "Lora", serif;
+			letter-spacing: .04em;
+		}
+
+		p {
+			font-size: 1em;
+			line-height: 1.5em;
+		}
+
+		a {
+			color: #005daa;
+			font-weight: bold;
+			text-decoration: none;
+		}
+
+		a:hover {
+			text-decoration: underline;
+		}
+
+		ul {
+			padding-left: 20px;
+		}
+
+		li {
+			margin: 10px 0
+		}
+
+		#map {
+			width: 960px;
+			height: 540px;
+			margin: 10px auto;
+			border: 2px solid #d3d3d3;
+		}
+
+		.leaflet-tooltip {
+			min-width: 110px;
+			max-width: 160px;
+			white-space: normal;
+		}
+
+		.legend {
+			padding: 6px 8px;
+			font-size: 1em;
+			background: rgba(255, 255, 255, 0.8);
+			box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+			border-radius: 5px;
+			width: 160px;
+		}
+
+		.legend h3 {
+			font-size: 1.1em;
+			font-weight: bold;
+			color: #001323;
+			margin: 0 0 10px 0;
+		}
+
+		.legend span {
+			width: 20px;
+			height: 20px;
+			float: left;
+			margin: 0 10px 4px 0;
+		}
+
+		.legend label {
+			font-size: 1.2em;
+		}
+
+		.legend label:after {
+			content: '';
+			display: block;
+			clear: both;
+		}
+
+		#ui-controls {
+			width: 960px;
+			margin: 10px auto;
+		}
+
+		#ui-controls label {
+			font-size: 1.4em;
+		}
+
+		#ui-controls label:after {
+			content: '';
+			display: block;
+		}
+
+		#ui-controls select {
+			font-size: 1.2em;
+			margin: 10px 0 10px;
+			padding: 0;
+		}
+
+		.info {
+			padding: 6px 8px;
+			font-size: 1em;
+			background: rgba(255, 255, 255, 0.8);
+			box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+			border-radius: 5px;
+			text-align: right;
+		}
+
+		.info h3 {
+			margin: 0;
+		}
+	</style>
+</head>
+
+<body>
+
+	<h1>Vacant Housing Units in Kentucky</h1>
+
+	<!-- add user interaction -->
+	<div id='ui-controls'>
+		<!-- write form element in here; creates a form with a dropdown menu of the options -->
+		<label>Choose a data attribute:</label>
+		<!-- creates a label for our dropdown-->
+		<select id="vacant">
+        <option value="VACANT_FOR" selected>available for rent</option> <!-- selected is the one that'll show when open-->
+        <option value="VACANT_FO2">available for sale</option>
+        <option value="VACANT_REN">rented, but unoccupied</option>
+      </select>
+	</div>
+	<!-- end ui-controls -->
+
+	<div id='map'></div>
+
+	<section>
+		<h2>about this map</h2>
+
+		<p>Map authored by me, M. Duever</p>
+
+		<p>Housing unit data from <a href="http://factfinder.census.gov/">American Fact finder</a> and consists of 2010 SF1 data. Classification scheme is ckmeans.
+		</p>
+
+	</section>
+
+
+	<script src="http://code.jquery.com/jquery-3.1.1.min.js"></script>
+	<script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"></script>
+	<script src="https://unpkg.com/simple-statistics@2.2.0/dist/simple-statistics.min.js"></script>
+
+	<script>
+		// initial map options, disabling pan/zoom
+		var options = {
+			scrollWheelZoom: false,
+			zoomSnap: .1,
+			dragging: false,
+			zoomControl: false
+		}
+
+		// create Leaflet map and apply options
+		var map = L.map('map', options);
+
+		// set global variables mapped attribute, and normalizing attribute
+		var attributeValue = "VACANT_FOR",
+			normValue = "VACANT";
+
+		var labels = {
+			"VACANT": "vacant units",
+			"VACANT_FOR": "% vacant housing units available for rent",
+			"VACANT_FO2": "% vacant housing units for sale",
+			"VACANT_REN": "% vacant housing units rented, but not occupied"
+		}
+		//call info panel
+		drawInfo();
+		// AJAX call to load county-level data
+		$.getJSON("data/ky_counties_housing.json", function(data) {
+
+			// draw the map using GeoJSON data
+			drawMap(data);
+		});
+
+		function drawMap(data) {
+
+			// create Leaflet data layer and add to map
+			var dataLayer = L.geoJson(data, {
+				style: function(feature) {
+					// style counties with initial default path options
+					return {
+						color: '#dddddd',
+						weight: 2,
+						fillOpacity: 1,
+						fillColor: '#1f78b4'
+					};
+				}
+			}).addTo(map);
+
+			// add User interaction with mouseover, mouseout
+			dataLayer.eachLayer(function(layer) {
+				layer.on('mouseover', function(e) {
+					updateInfo(this); //updates the info panel as the mouse moves
+					e.target.setStyle({ //changes layer color of selected
+						color: 'yellow'
+					}).bringToFront();
+				}).on("mouseout", function(e){
+					e.target.setStyle({ // returns to original layer color
+						color: '#dddddd'
+					});
+				})
+			});
+
+			dataLayer.on('mouseover', function(e){
+				$(".info").show(); //shows info panel only on mouseover, hides on mouseout
+			}).on('mouseout', function(e) {
+				$(".info").hide(); //hides info panel;
+			});
+
+			drawLegend();
+			addUi(dataLayer); //capture user interaction
+			updateMap(dataLayer); //update map on form change
+
+			map.fitBounds(dataLayer.getBounds()); //centers the map
+		} //end drawMap function
+
+		function updateMap(dataLayer) {
+
+			// get the class breaks for the initial data attribute
+			var breaks = getClassBreaks(dataLayer);
+
+			// draw the legend now that we have the classifications
+			//drawLegend();
+
+			// loop through each county layer
+			dataLayer.eachLayer(function(layer) {
+
+				// shortcut reference for layer properties
+				var props = layer.feature.properties;
+
+				// set the fill color of layer based on its normalized data value
+				layer.setStyle({
+					fillColor: getColor(props[attributeValue] / props[normValue], breaks)
+				});
+				// assemble string sequence of info for tooltip
+				var tooltipInfo = "<b>" + props["NAME"] + " County</b></br>" +
+					labels[attributeValue] + ": " + ((props[attributeValue] /
+						props[normValue]) * 100).toLocaleString() + "%"
+
+				// bind a tooltip to layer with county-specific information
+				layer.bindTooltip(tooltipInfo, {
+					sticky: true
+				});
+			});
+			updateLegend(breaks);
+		} //end updateMap function
+
+		function addUi(dataLayer) {
+			$('select[id="vacant"]').change(function() {
+
+				// code executed here when change event occurs
+				attributeValue = $(this).val();
+				updateMap(dataLayer);
+
+			});
+		} //end addUi function
+
+		function getClassBreaks(dataLayer) {
+
+			// create empty Array for storing values
+			var values = [];
+
+			// loop through all the counties
+			dataLayer.eachLayer(function(layer) {
+				var value = layer.feature.properties[attributeValue] / layer.feature.properties[normValue];
+				values.push(value); // push the normalized value for each layer into the Array
+			});
+
+			// determine similar clusters
+			var clusters = ss.ckmeans(values, 5);
+
+			// create an array of the lowest value within each cluster
+			var breaks = clusters.map(function(cluster) {
+				return [cluster[0], cluster.pop()];
+			});
+
+			//return array of arrays, e.g., [[0.24,0.25], [0.26, 0.37], etc] which are the breaks
+			return breaks;
+
+		} //end getClassBreaks function
+
+		function getColor(d, breaks) {
+			// function accepts a single normalized data attribute value
+			// and uses a series of conditional statements to determine which
+			// which color value to return to return to the function caller
+
+			if (d <= breaks[0][1]) {
+				return '#f1eef6';
+			} else if (d <= breaks[1][1]) {
+				return '#bdc9e1';
+			} else if (d <= breaks[2][1]) {
+				return '#74a9cf';
+			} else if (d <= breaks[3][1]) {
+				return '#2b8cbe'
+			} else if (d <= breaks[4][1]) {
+				return '#045a8d'
+			}
+		} //end getColor function
+
+		function drawLegend() {
+
+			// create a new Leaflet control object, and position it top left
+			var legendControl = L.control({
+				position: 'topleft'
+			});
+
+			// when the legend is added to the map
+			legendControl.onAdd = function(map) {
+
+				// create a div element with an class attribute of legend
+				var div = L.DomUtil.create('div', 'legend');
+
+				// return the div to the method
+				return div;
+			};
+
+			// add the empty legend div to the map
+			legendControl.addTo(map);
+
+
+		} //end drawLegend function
+
+		function updateLegend(breaks) {
+			// select the legend, add a title, begin an unordered list and assign to a variable
+			var legend = $('.legend').html("<h3>" + labels[attributeValue] + "</h3>");
+
+			// loop through the Array of classification break values
+			for (var i = 0; i <= breaks.length - 1; i++) {
+
+				// get the color of the each class group
+				var color = getColor(breaks[i][0], breaks);
+
+				// store a reference to the low/high values of each classification range, rounded
+				var lowVal = (breaks[i][0] * 100).toFixed(2),
+					highVal = (breaks[i][1] * 100).toFixed(2);
+
+				// select the legend and append the HTML elements and styles
+				// to build the legend units, a span element for each color
+				// and the associated number values
+				legend.append(
+					'<span style="background:' + color + '"></span> ' +
+					'<label>' + lowVal + ' &mdash; ' + highVal + '%</label>');
+			}
+		} //ends updateLegend
+
+		function drawInfo() {
+
+			var info = L.control({
+				position: 'topright'
+			});
+
+			info.onAdd = function(map) {
+
+				var div = L.DomUtil.create('div', 'info');
+
+				return div;
+
+			}
+			info.addTo(map);
+			$(".info").hide(); //hides info panel when nothing is mousedover
+		} //end drawinfo
+
+		//update info pane about county numbers on mouseover
+		function updateInfo(layer) {
+
+			var props = layer.feature.properties;
+
+			var html = "<h3>" + props['NAME'] + " County</h3>" +
+				"total # vacant units: <b>" + props["VACANT"] + "</b><br>" +
+				"# vacant units for rent: <b>" + props["VACANT_FOR"] + "</b><br>" +
+				"# vacant units for sale: <b>" + props["VACANT_FO2"] + "</b><br>" +
+				"# vacant units rented, but unoccupied: <b>" + props["VACANT_REN"] + "</b>"
+
+			$(".info").html(html);
+		} //end updateInfo(layer)
+	</script>
+
+</body>
+
+</html>
